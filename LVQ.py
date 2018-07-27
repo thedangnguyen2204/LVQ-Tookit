@@ -32,7 +32,7 @@ class prototype(object):
             self.p_vector = self.p_vector - self.epsilon * (u_vector - self.p_vector)
 
 class LVQ(object):
-    def __init__(self, x, y, n_classes, n_neurons, epsilon=0.9, epsilon_dec_factor=0.001):
+    def __init__(self, x, y, n_classes, n_neurons, p_vectors, epsilon=0.9, epsilon_dec_factor=0.001):
         """
         Initialize a LVQ network.
 
@@ -50,19 +50,21 @@ class LVQ(object):
         self.n_neurons = n_neurons
         self.epsilon = epsilon
         self.epsilon_dec_factor = epsilon_dec_factor
-        p_vectors = []
-        for i in range(n_classes):
-            # select class i
-            y_subset = np.where(y == i)
-            # select tuple for chosen class
-            x_subset = x[y_subset]
-            # get R random indices between 0 and 50
-            samples = np.random.randint(0, len(x_subset), n_neurons)
-            # select p_vectors, they are chosen randomly from the samples x
-            for sample in samples:
-                s = x_subset[sample]
-                p = prototype(i, s, epsilon)
-                p_vectors.append(p)
+        self.p_vectors = p_vectors
+        if(len(self.p_vectors) == 0):
+            p_vectors = []
+            for i in range(n_classes):
+                # select class i
+                y_subset = np.where(y == i)
+                # select tuple for chosen class
+                x_subset = x[y_subset]
+                # get R random indices between 0 and len(x_subset)
+                samples = np.random.randint(0, len(x_subset), n_neurons)
+                # select p_vectors, they are chosen randomly from the samples x
+                for sample in samples:
+                    s = x_subset[sample]
+                    p = prototype(i, s, epsilon)
+                    p_vectors.append(p)
         self.p_vectors = p_vectors
     def find_closest(self, in_vector, proto_vectors):
         """
@@ -74,13 +76,15 @@ class LVQ(object):
         proto_vectors: the set of prototype vectors
         """
         closest = None
+        position = None
         closest_distance = 99999
-        for p_v in proto_vectors:
-            distance = np.linalg.norm(in_vector - p_v.p_vector)
+        for i in range(len(proto_vectors)):
+            distance = np.linalg.norm(in_vector - proto_vectors[i].p_vector)
             if distance < closest_distance:
                 closest_distance = distance
-                closest = p_v
-        return closest
+                closest = proto_vectors[i]
+                position = i
+        return [position, closest]
     
     def find_runnerup(self, in_vector, proto_vectors):
         """
@@ -108,8 +112,8 @@ class LVQ(object):
         -------
         test_vector: input vector
         """
-        return self.find_closest(test_vector, self.p_vectors).class_id
-    def train(self, x, y):
+        return self.find_closest(test_vector, self.p_vectors)[1].class_id
+    def fit(self, x, y):
         """
         Perform iteration to adjust the prototype vector 
         in order to classify any new incoming points using existing data points
@@ -126,7 +130,7 @@ class LVQ(object):
             
             self.epsilon = self.epsilon - self.epsilon_dec_factor
             
-            closest_pvector = self.find_closest(rnd_s, self.p_vectors)
+            closest_pvector = self.find_closest(rnd_s, self.p_vectors)[1]
             
             if target_y == closest_pvector.class_id:
                 closest_pvector.update(rnd_s)
@@ -151,7 +155,7 @@ class LVQ(object):
             
             self.epsilon = self.epsilon - self.epsilon_dec_factor
             
-            closest_pvector = self.find_closest(rnd_s, self.p_vectors)
+            closest_pvector = self.find_closest(rnd_s, self.p_vectors)[1]
             second_closest_pvector = self.find_runnerup(rnd_s, self.p_vectors)
             compare_distance = np.linalg.norm(closest_pvector.p_vector - rnd_s)/np.linalg.norm(second_closest_pvector.p_vector - rnd_s)
             
